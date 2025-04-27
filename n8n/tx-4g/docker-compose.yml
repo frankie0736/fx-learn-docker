@@ -1,0 +1,120 @@
+version: "3.8"
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    restart: always
+    container_name: n8n-1
+    ports:
+      - 5678:5678
+    environment:
+      - N8N_HOST=n8n.210k.cc
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - NODE_ENV=production
+      - WEBHOOK_URL=https://n8n.210k.cc/
+      - GENERIC_TIMEZONE=Asia/Shanghai
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - /home/ubuntu/services/n8n/local_files:/files
+    networks:
+      - ai-network
+
+  postiz:
+    image: ghcr.io/gitroomhq/postiz-app:latest
+    container_name: postiz
+    restart: always
+    environment:
+      # You must change these. Replace `postiz.your-server.com` with your DNS name - this needs to be exactly the URL you're accessing Postiz on.
+      MAIN_URL: "https://postiz.210k.cc"
+      FRONTEND_URL: "https://postiz.210k.cc"
+      NEXT_PUBLIC_BACKEND_URL: "https://postiz.210k.cc/api"
+      JWT_SECRET: "random string that is unique to every install - just type random characters here!"
+ 
+      # These defaults are probably fine, but if you change your user/password, update it in the
+      # postiz-postgres or postiz-redis services below.
+      DATABASE_URL: "postgresql://postiz-user:postiz-password@postgres:5432/postiz-db-local"
+      REDIS_URL: "redis://redis:6379"
+      BACKEND_INTERNAL_URL: "http://postiz:5000"
+      IS_GENERAL: "true" # Required for self-hosting.
+      # The container images are pre-configured to use /uploads for file storage.
+      # You probably should not change this unless you have a really good reason!
+      STORAGE_PROVIDER: "local"
+      UPLOAD_DIRECTORY: "/uploads"
+      NEXT_PUBLIC_UPLOAD_DIRECTORY: "/uploads"
+    volumes:
+      - postiz_data:/config/
+      - postiz_upload:/uploads/
+    ports:
+      - 5000:5000
+    networks:
+      - ai-network
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:latest
+    restart: unless-stopped
+    container_name: postgres
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydatabase
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ai-network  
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    container_name: qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    environment:
+      - QDRANT__CLUSTER__ENABLED=false
+      - QDRANT__SERVICE__API_KEY=1234567890
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - ai-network
+  
+  redis:
+    image: redis:latest
+    restart: unless-stopped
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: redis-cli ping
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - ai-network
+
+volumes:
+  n8n_data:
+    external: true
+  postgres_data:
+    external: true
+  qdrant_data:
+    external: true
+  redis_data:
+    external: true
+
+  postgres-volume:
+    external: true
+ 
+  postiz_upload:
+    external: true
+
+networks:
+  ai-network:
+    external: true
